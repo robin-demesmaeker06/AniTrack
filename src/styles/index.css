@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  AniTrack theme — dark-first, "signal cyan" broadcast feel.
+  Cover art is the visual identity; the chrome stays quiet.
+  All colors flow through CSS vars so the light theme is a var swap.
+*/
+@theme {
+  --color-bg: var(--at-bg);
+  --color-surface: var(--at-surface);
+  --color-raised: var(--at-raised);
+  --color-line: var(--at-line);
+  --color-line-strong: var(--at-line-strong);
+  --color-ink: var(--at-ink);
+  --color-ink-soft: var(--at-ink-soft);
+  --color-ink-faint: var(--at-ink-faint);
+  --color-signal: var(--at-signal);
+  --color-signal-strong: var(--at-signal-strong);
+  --color-signal-dim: var(--at-signal-dim);
+  --color-on-signal: var(--at-on-signal);
+  --color-danger: var(--at-danger);
+  --color-success: var(--at-success);
+  --color-warn: var(--at-warn);
+
+  --font-display: "Syne Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, "Hiragino Sans",
+    "Noto Sans CJK JP", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-card: 0.625rem;
+}
+
+:root {
+  /* dark (default) */
+  --at-bg: #0a0f12;
+  --at-surface: #10171c;
+  --at-raised: #162028;
+  --at-line: #1d2a33;
+  --at-line-strong: #2b3d49;
+  --at-ink: #e6f0f3;
+  --at-ink-soft: #9db1ba;
+  --at-ink-faint: #5e7280;
+  --at-signal: #2fd6e8;
+  --at-signal-strong: #6ae4f2;
+  --at-signal-dim: #0f5560;
+  --at-on-signal: #04262b;
+  --at-danger: #ff5c74;
+  --at-success: #43dfa0;
+  --at-warn: #ffb454;
+}
+
+.light {
+  --at-bg: #f2f6f7;
+  --at-surface: #ffffff;
+  --at-raised: #e8eef1;
+  --at-line: #d5e0e5;
+  --at-line-strong: #b3c5cd;
+  --at-ink: #16232a;
+  --at-ink-soft: #4a5f6a;
+  --at-ink-faint: #7e929c;
+  --at-signal: #0894a8;
+  --at-signal-strong: #06758a;
+  --at-signal-dim: #b9e8ee;
+  --at-on-signal: #ffffff;
+  --at-danger: #d81b45;
+  --at-success: #0f9d6a;
+  --at-warn: #b26a00;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-bg text-ink font-sans antialiased;
+}
+
+/* Visible keyboard focus everywhere (§10) */
+:focus-visible {
+  outline: 2px solid var(--at-signal);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Broadcast detail: episode numbers, countdowns, timestamps use mono */
+.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
