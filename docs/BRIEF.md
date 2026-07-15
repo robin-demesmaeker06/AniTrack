@@ -17,8 +17,8 @@ can pick up without the chat history.
 
 ## Phase tracker
 
-1. ✅ Scaffold, Supabase schema (7 tables + RLS + auth), base layout/nav, theme, profile settings — **done 2026-07-14, awaiting Robin's smoke test**
-2. ⬜ AniList client + `media_cache`, Explore (anime/manga) with URL-driven filters, media detail page (read-only)
+1. ✅ Scaffold, Supabase schema (7 tables + RLS + auth), base layout/nav, theme, profile settings — done + smoke-tested 2026-07-14
+2. ✅ AniList client + `media_cache`, Explore (anime/manga) with URL-driven filters, media detail page (read-only) — **built 2026-07-14, awaiting Robin's smoke test.** All AniList traffic flows through the `anilist` Edge Function (browse/detail): per-user rate limits via `bump_rate_limit`, 429/Retry-After passthrough, media_cache upserts with 1h/24h TTL. Client detail reads try the public media_cache row first.
 3. ⬜ Library tracking: tracking widget, statuses, progress, scores, notes, `activity_log`, profile library view
 4. ⬜ Home dashboard: continue watching, new drops (anime), activity feed
 5. ⬜ Schedule page, notifications center + drop-detection job, stats dashboard, News page + aggregation pipeline

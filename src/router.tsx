@@ -12,6 +12,7 @@ import { AuthCallbackPage } from "@/features/auth/AuthCallbackPage";
 import { HomePage } from "@/features/home/HomePage";
 import { SchedulePage } from "@/features/schedule/SchedulePage";
 import { ExplorePage } from "@/features/explore/ExplorePage";
+import { MediaDetailPage } from "@/features/media/MediaDetailPage";
 import { ProfilePage } from "@/features/profile/ProfilePage";
 import { SettingsPage } from "@/features/profile/SettingsPage";
 import { Link } from "react-router";
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
           { path: "/", element: <HomePage /> },
           { path: "/schedule", element: <SchedulePage /> },
           { path: "/explore/:type", element: <ExplorePage /> },
+          { path: "/media/:type/:id", element: <MediaDetailPage /> },
           { path: "/profile", element: <ProfilePage /> },
           { path: "/settings", element: <SettingsPage /> },
         ],

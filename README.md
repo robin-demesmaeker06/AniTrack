@@ -50,13 +50,19 @@ Architecture rules that keep the future mobile app cheap:
 The app works with email + password alone until this is done — the Google
 button will just error.
 
-### 3. Edge Function
+### 3. Edge Functions
 
 ```sh
 supabase functions deploy delete-account
+supabase functions deploy anilist
 # optional, for error monitoring:
 supabase secrets set SENTRY_DSN=your-edge-dsn
 ```
+
+`anilist` is the app's only gateway to AniList (Phase 2): it caches every
+media object into `media_cache` (TTL 1h airing / 24h finished), enforces
+per-user rate limits, and honors AniList's Retry-After. Requires the
+`20260714200000_phase2_rate_limits.sql` migration.
 
 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.
 The service-role key never leaves Supabase's servers.
