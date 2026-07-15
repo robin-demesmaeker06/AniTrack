@@ -15,6 +15,7 @@ import { ExplorePage } from "@/features/explore/ExplorePage";
 import { MediaDetailPage } from "@/features/media/MediaDetailPage";
 import { ProfilePage } from "@/features/profile/ProfilePage";
 import { SettingsPage } from "@/features/profile/SettingsPage";
+import { StatsPage } from "@/features/stats/StatsPage";
 import { Link } from "react-router";
 
 function NotFound() {
@@ -53,6 +54,7 @@ export const router = createBrowserRouter([
           { path: "/explore/:type", element: <ExplorePage /> },
           { path: "/media/:type/:id", element: <MediaDetailPage /> },
           { path: "/profile", element: <ProfilePage /> },
+          { path: "/stats", element: <StatsPage /> },
           { path: "/settings", element: <SettingsPage /> },
         ],
       },

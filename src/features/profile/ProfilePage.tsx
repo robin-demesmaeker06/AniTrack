@@ -40,6 +40,12 @@ export function ProfilePage() {
         </div>
         <div className="ml-auto flex shrink-0 gap-2">
           <Link
+            to="/stats"
+            className="rounded-md border border-line-strong px-3 py-1.5 text-sm text-ink-soft hover:border-signal/60 hover:text-ink"
+          >
+            Stats
+          </Link>
+          <Link
             to="/settings"
             className="rounded-md border border-line-strong px-3 py-1.5 text-sm text-ink-soft hover:border-signal/60 hover:text-ink"
           >
