@@ -171,3 +171,32 @@ export async function getMediaDetail(
   });
   return toDetail(data.media);
 }
+
+// ---------------------------------------------------------------- schedule
+
+/** One airing slot in the weekly calendar (§6.2). */
+export interface AiringSlot {
+  episode: number;
+  /** ISO string, converted from AniList's unix seconds. */
+  airingAt: string;
+  media: Media;
+}
+
+/**
+ * All airing episodes between start and end (unix seconds, ≤ 8 days).
+ * The Edge Function paginates AniList and filters adult entries.
+ */
+export async function getAiringSchedule(
+  start: number,
+  end: number,
+): Promise<AiringSlot[]> {
+  const data = await invokeAniList<{
+    schedules: Array<{ episode: number; airingAt: number; media: RawMedia }>;
+  }>({ action: "schedule", start, end });
+
+  return data.schedules.map((s) => ({
+    episode: s.episode,
+    airingAt: new Date(s.airingAt * 1000).toISOString(),
+    media: toMedia(s.media),
+  }));
+}

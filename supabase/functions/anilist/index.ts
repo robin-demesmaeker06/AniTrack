@@ -1,11 +1,13 @@
 // anilist — the app's only gateway to the AniList GraphQL API (§3).
 //
-// Two actions:
-//   browse — search/filter pages for Explore; every media object returned
-//            is upserted into media_cache.
-//   detail — one media with relations/recommendations; served from
-//            media_cache when fresh (TTL 1h releasing / 24h otherwise),
-//            fetched + upserted otherwise.
+// Three actions:
+//   browse   — search/filter pages for Explore; every media object returned
+//              is upserted into media_cache.
+//   detail   — one media with relations/recommendations; served from
+//              media_cache when fresh (TTL 1h releasing / 24h otherwise),
+//              fetched + upserted otherwise.
+//   schedule — airingSchedules for a time window (Schedule page, §6.2);
+//              paginates AniList internally, upserts media it sees.
 //
 // Centralizing this here enforces one AniList budget (~30 req/min, §3),
 // per-user rate limits (§8), and keeps media_cache service-write-only (§4).
@@ -53,7 +55,19 @@ const DetailSchema = z.object({
   type: z.enum(["ANIME", "MANGA"]),
 });
 
-const BodySchema = z.discriminatedUnion("action", [BrowseSchema, DetailSchema]);
+// start/end are unix seconds. No .refine() here — zod 3's discriminatedUnion
+// only accepts plain ZodObjects, so the window check lives in the handler.
+const ScheduleSchema = z.object({
+  action: z.literal("schedule"),
+  start: z.number().int().min(0),
+  end: z.number().int().min(0),
+});
+
+const BodySchema = z.discriminatedUnion("action", [
+  BrowseSchema,
+  DetailSchema,
+  ScheduleSchema,
+]);
 
 // ---------------------------------------------------------------- queries
 
@@ -102,6 +116,21 @@ query Detail($id: Int, $type: MediaType) {
           title { romaji english native }
           coverImage { large }
         }
+      }
+    }
+  }
+}`;
+
+const AIRING_QUERY = `
+query Airing($page: Int, $start: Int, $end: Int) {
+  Page(page: $page, perPage: 50) {
+    pageInfo { hasNextPage }
+    airingSchedules(airingAt_greater: $start, airingAt_lesser: $end, sort: TIME) {
+      episode
+      airingAt
+      media {
+        ${MEDIA_FIELDS}
+        isAdult
       }
     }
   }
@@ -253,10 +282,13 @@ Deno.serve(async (req) => {
 
     // Per-user limits (§8); AniList's own budget is enforced reactively via
     // its 429 + Retry-After.
+    // schedule fans out to several AniList pages per call, so it gets the
+    // tightest per-user budget.
     const { data: allowed, error: rlError } = await admin.rpc("bump_rate_limit", {
       p_user: userId,
       p_action: `anilist:${body.action}`,
-      p_limit: body.action === "browse" ? 20 : 30,
+      p_limit:
+        body.action === "schedule" ? 6 : body.action === "browse" ? 20 : 30,
     });
     if (rlError) throw rlError;
     if (!allowed) {
@@ -283,6 +315,58 @@ Deno.serve(async (req) => {
       };
       await upsertMedia(admin, page.media);
       return json(200, { pageInfo: page.pageInfo, media: page.media });
+    }
+
+    if (body.action === "schedule") {
+      // Window check (moved out of the zod schema, see ScheduleSchema).
+      if (body.end <= body.start || body.end - body.start > 8 * 86400) {
+        return json(400, { error: "Invalid window" });
+      }
+      // Paginate the whole window server-side (a week is ~5–7 pages).
+      // No server cache yet — the client holds the week for 15 min, and the
+      // per-user limit above keeps refresh-spamming off AniList's budget.
+      interface RawSlot {
+        episode: number;
+        airingAt: number;
+        media: (AniListMedia & { isAdult?: boolean | null }) | null;
+      }
+      const slots: RawSlot[] = [];
+      for (let page = 1; page <= 8; page++) {
+        const result = await fetchAniList(AIRING_QUERY, {
+          page,
+          start: body.start,
+          end: body.end,
+        });
+        if (!result.ok) {
+          // Partial week beats a hard failure; only fail with nothing to show.
+          if (slots.length > 0) break;
+          return result.response;
+        }
+        const p = result.data.Page as {
+          pageInfo: { hasNextPage: boolean };
+          airingSchedules: RawSlot[];
+        };
+        slots.push(...p.airingSchedules);
+        if (!p.pageInfo.hasNextPage) break;
+      }
+
+      const clean = slots.filter(
+        (s): s is RawSlot & { media: AniListMedia } =>
+          Boolean(s.media) && !s.media?.isAdult,
+      );
+
+      // One row per media for the upsert (a series can air twice in a window).
+      const byId = new Map<number, AniListMedia>();
+      for (const s of clean) byId.set(s.media.id, s.media);
+      await upsertMedia(admin, [...byId.values()]);
+
+      return json(200, {
+        schedules: clean.map((s) => ({
+          episode: s.episode,
+          airingAt: s.airingAt,
+          media: s.media,
+        })),
+      });
     }
 
     // detail — cache first

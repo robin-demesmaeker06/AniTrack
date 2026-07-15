@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeApplier } from "@/features/profile/ThemeApplier";
+import { NotificationBell } from "@/features/notifications/NotificationBell";
 
 const tabs = [
   { to: "/", label: "Home", icon: HomeIcon },
@@ -17,6 +18,7 @@ export function AppShell() {
   return (
     <div className="min-h-dvh md:flex">
       <ThemeApplier />
+      <NotificationBell />
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:w-56 md:flex-col md:border-r md:border-line md:px-4 md:py-6 shrink-0 sticky top-0 h-dvh">
@@ -27,7 +29,7 @@ export function AppShell() {
           ))}
         </nav>
         <p className="mt-auto text-xs text-ink-faint">
-          Data from AniList · Phase 4
+          Data from AniList · Phase 5
         </p>
       </aside>
 
