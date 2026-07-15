@@ -7,6 +7,7 @@ import { useLibraryList } from "@/features/library/useLibrary";
 import { getRecentActivity, type ActivityWithMedia } from "@/services/activityService";
 import { computeDrops, type Drop } from "./drops";
 import { ContinueCard } from "./ContinueCard";
+import { LibraryNewsStrip } from "@/features/news/LibraryNewsStrip";
 import { displayTitle, formatScore, timeAgo } from "@/lib/format";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
@@ -36,6 +37,10 @@ export function HomePage() {
   );
 
   const drops = useMemo(() => computeDrops(items), [items]);
+  const libraryIds = useMemo(
+    () => items.map((i) => i.entry.anilistMediaId),
+    [items],
+  );
   const libraryEmpty = !listQuery.isLoading && items.length === 0;
 
   return (
@@ -99,6 +104,8 @@ export function HomePage() {
               </div>
             )}
           </section>
+
+          <LibraryNewsStrip anilistMediaIds={libraryIds} />
         </>
       )}
 

@@ -11,6 +11,7 @@ import {
 import { AuthCallbackPage } from "@/features/auth/AuthCallbackPage";
 import { HomePage } from "@/features/home/HomePage";
 import { SchedulePage } from "@/features/schedule/SchedulePage";
+import { NewsPage } from "@/features/news/NewsPage";
 import { ExplorePage } from "@/features/explore/ExplorePage";
 import { MediaDetailPage } from "@/features/media/MediaDetailPage";
 import { ProfilePage } from "@/features/profile/ProfilePage";
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
         children: [
           { path: "/", element: <HomePage /> },
           { path: "/schedule", element: <SchedulePage /> },
+          { path: "/news", element: <NewsPage /> },
           { path: "/explore/:type", element: <ExplorePage /> },
           { path: "/media/:type/:id", element: <MediaDetailPage /> },
           { path: "/profile", element: <ProfilePage /> },

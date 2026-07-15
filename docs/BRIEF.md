@@ -21,10 +21,10 @@ can pick up without the chat history.
 2. ✅ AniList client + `media_cache`, Explore (anime/manga) with URL-driven filters, media detail page (read-only) — **built 2026-07-14, awaiting Robin's smoke test.** All AniList traffic flows through the `anilist` Edge Function (browse/detail): per-user rate limits via `bump_rate_limit`, 429/Retry-After passthrough, media_cache upserts with 1h/24h TTL. Client detail reads try the public media_cache row first.
 3. ✅ Library tracking — **built 2026-07-15, awaiting Robin's smoke test.** TrackingWidget on media detail (add/remove, status, progress/volume steppers, score in user format, dates, notes, "Completed?" suggestion, AniList-style autofills), diff-based activity_log writes in libraryService, LibraryView on Profile (status tabs + counts, anime/manga switch, grid/list, sort, inline +1 and score edit). All mutations optimistic. Phase 6 write-through hooks into updateEntry/addEntry without caller changes.
 4. ✅ Home dashboard — **built 2026-07-15, awaiting Robin's smoke test.** Continue rail (one-tap +1, "Done?" at total, shared optimistic library-list cache), New drops computed client-side from media_cache (anime precise via next_airing_episode, manga "Updated" per §9, RELEASING only — Phase 5's job supplies freshness), activity feed with per-action rendering + relative timestamps.
-5. ◐ Split into 5a/5b/5c (2026-07-15):
+5. ✅ Split into 5a/5b/5c (2026-07-15):
    - 5a ✅ Schedule page + drop-detection job + notifications center — **built + smoke-tested 2026-07-15** (one bug found mid-test: `.refine()` inside `z.discriminatedUnion()` crashed the anilist function at boot on zod 3, fixed to a plain object schema — see anitrack.md). Schedule: new `schedule` action on the anilist function (airingSchedules, server-side pagination, adult filter), rolling 7-day window, day-strip tabs (mobile) / seven columns (desktop), local timezone, countdowns on today, All vs My list toggle with library highlighting. Drop detection: `drop-check` Edge Function (service-role only) refreshes media_cache for every CURRENT/PLANNING series and inserts NEW_EPISODE / NEW_CHAPTER ("Updated") notifications via the new `insert_notifications` RPC — idempotent through `notifications_dedupe_idx`. This same refresh keeps Home's "New drops" fresh. Notifications center: floating bell with unread badge (60s poll), dropdown panel, mark-one/mark-all-read (optimistic), click-through to the media page.
-   - 5b ✅ Stats dashboard — **built 2026-07-15, awaiting Robin's smoke test.** New `/stats` route (linked from Profile header, no new nav tab — same treatment as Settings). Pure client-side aggregation (`src/features/stats/stats.ts`) over the library list already fetched by Home/Profile: episodes watched, chapters read, mean score, status breakdown split by anime/manga, top genres — all as plain bar charts (no chart dependency). "Days watched" is a labeled estimate at 24 min/episode, since the anilist function's `MEDIA_FIELDS` doesn't request AniList's `duration` field (would need a function redeploy to add — skipped to keep 5b a zero-deploy phase, matching the brief's "cheap" framing). No migration, no function change, no deploy step — just build + smoke test + push.
-   - 5c ⬜ News page + aggregation pipeline
+   - 5b ✅ Stats dashboard — **built 2026-07-15, awaiting Robin's smoke test.** New `/stats` route (linked from Profile header, no new nav tab — same treatment as Settings). Pure client-side aggregation (`src/features/stats/stats.ts`) over the library list already fetched by Home/Profile: episodes watched, chapters read, mean score, status breakdown split by anime/manga, top genres — all as plain bar charts (no chart dependency). "Days watched" originally shipped as a flat 24 min/episode estimate (no migration/deploy needed); **since 5c's deploy was happening anyway, real AniList `duration` was added the same session** (see below) — Stats now blends real durations where the cache has them with the 24 min/ep fallback elsewhere, and the card says which ("Real AniList runtime" / "Mixed" / "Est.").
+   - 5c ✅ News page + aggregation pipeline + real episode duration — **built 2026-07-15, awaiting Robin's smoke test.** `news_items` was already scaffolded in Phase 1 — no new table, just a `related_anilist_media_id` index. `news-fetch` Edge Function (scheduled, service-role only, mirrors drop-check's auth): fetches the config-driven RSS list (`FEEDS` array — start: ANN, Crunchyroll News) via `npm:rss-parser`, strips HTML from excerpts, dedupes on `(source, guid)`, best-effort matches headlines to cached AniList titles (conservative substring match — never guesses wrong on a miss, just sometimes misses). `series-news` Edge Function (user-invoked, JWT + `bump_rate_limit` like the anilist function): Jikan `/anime|manga/{mal_id}/news`, read-through cached in `news_items` itself (source `jikan`, 16h TTL within the spec's 12–24h window), falls back to stale cache if Jikan itself 429s. Client: News page (`/news`, new 5th nav tab — reverse-chron cards, All vs My series), `LibraryNewsStrip` on Home ("News on your series", renders nothing if no matches — no empty-state noise), `SeriesNewsSection` on the media detail page (lazy Jikan fetch on open). Real duration: added `duration` to `MEDIA_FIELDS` in both `anilist` and `drop-check` functions + a `media_cache.duration` column (migration `20260715130000`) — piggybacked here since both functions needed a redeploy for 5c anyway. **Caveat, not verified against live feeds** (no outbound network access in the build sandbox): thumbnail/excerpt field mapping in `news-fetch` is written defensively from the RSS/Atom spec, not confirmed against ANN's/Crunchyroll's actual payloads — first thing to check in the smoke test if cards show up with no images.
 6. ⬜ AniList OAuth link, import, two-way sync with failure queue
 7. ⬜ Polish: empty/error/loading states, a11y, mobile ergonomics, §8 security verification
 
@@ -85,7 +85,11 @@ into `news_items`. Jikan (api.jikan.moe/v4) per-series news via
 outbound link; All vs My series filter via related_anilist_media_id), News
 tab on media detail (Jikan), compact "News on your series" strip on Home.
 Copyright rule: headline/excerpt/thumb/link only, never full text — send
-traffic out. News page also needs a nav slot (5th tab or under Home).
+traffic out. News page also needs a nav slot (5th tab or under Home) —
+**decided: 5th bottom tab** (built 2026-07-15). Reasoning: News is primary
+content on the same footing as Schedule/Explore, not a secondary
+profile-management page like Settings/Stats (those stay links off Profile).
+Five tabs is a common, well-supported mobile pattern.
 
 ## Design direction
 
@@ -112,3 +116,36 @@ updates on all tracking actions, plain active language in empty/error states.
 5. Commit + push (manual — sandbox git is read-only on this repo).
 
 **Confirmed done by Robin, 2026-07-15** (commit `14c4938`, pushed, tree clean).
+
+## Robin's 5b/5c deploy steps
+
+1. Run `supabase/migrations/20260715130000_phase5_duration_and_news.sql` in
+   the SQL editor (adds `media_cache.duration` + a `news_items` index).
+2. Redeploy `anilist` and `drop-check` (both now request AniList's
+   `duration` field) and deploy the two new functions:
+   `supabase functions deploy anilist drop-check news-fetch series-news`.
+3. Schedule `news-fetch` every 30 min — same as drop-check: dashboard →
+   Integrations → Cron → Edge Function job, `*/30 * * * *`, Authorization
+   header `Bearer <service role key>`. `series-news` needs no cron — it's
+   invoked on-demand from the client.
+4. Smoke test:
+   - **Stats** (`/stats`): "Days watched" hint will likely read "Est." for
+     everything at first — existing media_cache rows don't get a real
+     `duration` until their next TTL refresh or a revisit (browsing a title
+     or opening its detail page re-fetches it). Not a bug; check back after
+     some cache churn or a manual revisit of a library title.
+   - **News** (`/news`, new 5th nav tab): confirm both ANN and Crunchyroll
+     cards render with thumbnails and excerpts. If either comes through
+     with no image, that's the unverified field-mapping guess in
+     `news-fetch` — check ANN's/Crunchyroll's actual RSS payload for where
+     the thumbnail actually lives and adjust `extractImage`. "My series"
+     filter will likely be sparse at first (best-effort title matching,
+     builds up as media_cache fills in).
+   - **Home**: "News on your series" strip — same caveat, may not appear
+     until a match exists.
+   - **Media detail page**: open a series with a MAL id in your library,
+     confirm the News section either shows Jikan items or renders nothing
+     (never an error state) if that series has none.
+   - Mobile bottom nav now has 5 tabs — quick look that it still fits/reads
+     fine at narrow widths.
+5. Commit + push (manual — sandbox git is read-only on this repo).

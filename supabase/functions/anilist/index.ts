@@ -73,7 +73,7 @@ const BodySchema = z.discriminatedUnion("action", [
 
 const MEDIA_FIELDS = `
   id idMal type format status season seasonYear
-  episodes chapters volumes averageScore genres bannerImage
+  episodes chapters volumes duration averageScore genres bannerImage
   title { romaji english native }
   coverImage { extraLarge large }
   nextAiringEpisode { episode airingAt }
@@ -156,6 +156,8 @@ interface AniListMedia {
   episodes: number | null;
   chapters: number | null;
   volumes: number | null;
+  /** Per-episode runtime, minutes. Movies/specials sometimes lack it. */
+  duration: number | null;
   averageScore: number | null;
   genres: string[] | null;
   bannerImage: string | null;
@@ -179,6 +181,7 @@ function toCacheRow(m: AniListMedia) {
     episodes: m.episodes,
     chapters: m.chapters,
     volumes: m.volumes,
+    duration: m.duration ?? null,
     airing_status: m.status,
     genres: m.genres ?? [],
     average_score: m.averageScore,

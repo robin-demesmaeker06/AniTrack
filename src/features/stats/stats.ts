@@ -1,16 +1,18 @@
 // Stats dashboard (§6.5): pure aggregation over the already-fetched library
-// list (entries + joined media_cache) — no new queries, no migrations, no
-// deploy. Everything here is a plain function so it's testable and reusable
-// from the future native app.
+// list (entries + joined media_cache) — no new queries beyond the duration
+// column added alongside this. Everything here is a plain function so it's
+// testable and reusable from the future native app.
 import { ALL_STATUSES } from "@/lib/statusLabels";
 import type { LibraryListItem } from "@/services/libraryService";
 import type { EntryStatus, MediaType } from "@/types";
 
 /**
- * AniList's per-episode `duration` isn't requested by the anilist function
- * yet (see MEDIA_FIELDS), so it's never in media_cache. "Days watched" is
- * therefore an estimate at this fixed average, not a real figure — same
- * spirit as the manga "Updated" approximation in §9: never fake precision.
+ * Fallback when a cached anime's AniList `duration` is unknown — either the
+ * cache row predates this field being requested (won't refresh until its
+ * next TTL cycle or a revisit) or AniList itself doesn't report one for that
+ * entry (movies/specials vary). "Days watched" blends real durations where
+ * cached with this estimate elsewhere, and says which it used — never fakes
+ * precision, same spirit as the manga "Updated" approximation in §9.
  */
 export const AVG_EPISODE_MINUTES = 24;
 
@@ -24,6 +26,8 @@ export interface StatsSummary {
   episodesWatched: number;
   chaptersRead: number;
   estimatedDaysWatched: number;
+  /** Episodes counted using a real AniList `duration`, out of episodesWatched. */
+  episodesWithKnownDuration: number;
   /** 0–100 internal (§4); format for display with the user's score format. */
   meanScore: number | null;
   ratedCount: number;
@@ -42,6 +46,8 @@ export function computeStats(items: LibraryListItem[]): StatsSummary {
   let chaptersRead = 0;
   let scoreSum = 0;
   let ratedCount = 0;
+  let totalMinutes = 0;
+  let episodesWithKnownDuration = 0;
   const statusCounts: Record<MediaType, Record<EntryStatus, number>> = {
     ANIME: emptyStatusCounts(),
     MANGA: emptyStatusCounts(),
@@ -53,6 +59,12 @@ export function computeStats(items: LibraryListItem[]): StatsSummary {
 
     if (entry.mediaType === "ANIME") {
       episodesWatched += entry.progress;
+      if (media?.duration != null) {
+        totalMinutes += entry.progress * media.duration;
+        episodesWithKnownDuration += entry.progress;
+      } else {
+        totalMinutes += entry.progress * AVG_EPISODE_MINUTES;
+      }
     } else {
       chaptersRead += entry.progress;
     }
@@ -80,7 +92,8 @@ export function computeStats(items: LibraryListItem[]): StatsSummary {
     totalEntries: items.length,
     episodesWatched,
     chaptersRead,
-    estimatedDaysWatched: (episodesWatched * AVG_EPISODE_MINUTES) / 60 / 24,
+    estimatedDaysWatched: totalMinutes / 60 / 24,
+    episodesWithKnownDuration,
     meanScore: ratedCount > 0 ? scoreSum / ratedCount : null,
     ratedCount,
     statusCounts,

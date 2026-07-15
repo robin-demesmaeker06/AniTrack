@@ -63,6 +63,7 @@ interface CacheRow {
   episodes: number | null;
   chapters: number | null;
   volumes: number | null;
+  duration: number | null;
   airing_status: string | null;
   genres: string[];
   average_score: number | null;
@@ -89,6 +90,7 @@ function cacheRowToMedia(row: CacheRow): Media {
     episodes: row.episodes,
     chapters: row.chapters,
     volumes: row.volumes,
+    duration: row.duration,
     airingStatus: row.airing_status,
     genres: row.genres ?? [],
     averageScore: row.average_score,
@@ -298,7 +300,7 @@ export async function getLibraryList(
   const { data: mediaRows, error: mediaError } = await supabase
     .from("media_cache")
     .select(
-      "anilist_media_id, media_type, mal_id, title_romaji, title_english, title_native, cover_url, banner_url, format, episodes, chapters, volumes, airing_status, genres, average_score, season, season_year, next_airing_episode, next_airing_at, cached_at",
+      "anilist_media_id, media_type, mal_id, title_romaji, title_english, title_native, cover_url, banner_url, format, episodes, chapters, volumes, duration, airing_status, genres, average_score, season, season_year, next_airing_episode, next_airing_at, cached_at",
     )
     .in("anilist_media_id", ids);
   if (mediaError) throw mediaError;

@@ -7,6 +7,7 @@ const tabs = [
   { to: "/", label: "Home", icon: HomeIcon },
   { to: "/schedule", label: "Schedule", icon: CalendarIcon },
   { to: "/explore/anime", label: "Explore", icon: CompassIcon, match: "/explore" },
+  { to: "/news", label: "News", icon: NewsIcon },
   { to: "/profile", label: "Profile", icon: UserIcon },
 ];
 
@@ -158,6 +159,30 @@ function CompassIcon({ active }: { active: boolean }) {
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function NewsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="3.5"
+        y="5.5"
+        width="17"
+        height="13"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        fill={active ? "currentColor" : "none"}
+        fillOpacity={active ? 0.15 : 0}
+      />
+      <path
+        d="M7 9.5h6M7 12.5h6M7 15h3.5M15 9.5h2"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
       />
     </svg>
   );

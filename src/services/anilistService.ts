@@ -24,6 +24,7 @@ interface RawMedia {
   episodes: number | null;
   chapters: number | null;
   volumes: number | null;
+  duration: number | null;
   averageScore: number | null;
   genres: string[] | null;
   bannerImage: string | null;
@@ -56,6 +57,7 @@ function toMedia(raw: RawMedia): Media {
     episodes: raw.episodes ?? null,
     chapters: raw.chapters ?? null,
     volumes: raw.volumes ?? null,
+    duration: raw.duration ?? null,
     airingStatus: raw.status ?? null,
     genres: raw.genres ?? [],
     averageScore: raw.averageScore ?? null,

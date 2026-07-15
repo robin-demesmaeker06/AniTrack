@@ -7,6 +7,7 @@ import { TrackingWidget } from "@/features/library/TrackingWidget";
 import { useCountdown } from "./useCountdown";
 import { displayTitle } from "@/lib/format";
 import { sanitizeHtml } from "@/lib/sanitize";
+import { SeriesNewsSection } from "@/features/news/SeriesNewsSection";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import type { Media, MediaDetail, MediaType, TitleLanguage } from "@/types";
@@ -175,6 +176,12 @@ export function MediaDetailPage() {
             ))}
           </Rail>
         )}
+
+        <SeriesNewsSection
+          malId={media.malId}
+          mediaType={media.mediaType}
+          anilistMediaId={media.anilistMediaId}
+        />
 
         <div className="h-8" />
       </div>

@@ -57,7 +57,7 @@ export function StatsPage() {
         <StatCard
           label="Days watched"
           value={stats.estimatedDaysWatched.toFixed(1)}
-          hint={`Est. · ${AVG_EPISODE_MINUTES} min/ep`}
+          hint={durationHint(stats.episodesWithKnownDuration, stats.episodesWatched)}
         />
         <StatCard
           label="Mean score"
@@ -88,6 +88,16 @@ export function StatsPage() {
       )}
     </div>
   );
+}
+
+/** How much of "days watched" is real AniList runtime vs. the fallback
+ * estimate — cache rows only get a real duration once (re)fetched, so
+ * older library entries may still be estimated until their next refresh. */
+function durationHint(known: number, total: number): string {
+  if (total === 0) return `Est. · ${AVG_EPISODE_MINUTES} min/ep`;
+  if (known === total) return "Real AniList runtime";
+  if (known === 0) return `Est. · ${AVG_EPISODE_MINUTES} min/ep`;
+  return `Mixed · ${AVG_EPISODE_MINUTES} min/ep for ${total - known} eps`;
 }
 
 function PageHeader() {

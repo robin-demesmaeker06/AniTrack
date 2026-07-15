@@ -18,6 +18,9 @@ export interface Media {
   episodes: number | null;
   chapters: number | null;
   volumes: number | null;
+  /** Per-episode runtime, minutes. Null until the cache row is (re)fetched
+   * post-Phase-5b, or for formats AniList doesn't report it for. */
+  duration: number | null;
   airingStatus: string | null;
   genres: string[];
   averageScore: number | null;
