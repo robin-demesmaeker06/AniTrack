@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getMediaDetail } from "@/services/anilistService";
 import { useProfile } from "@/features/profile/useProfile";
 import { useLibraryLookup } from "@/features/library/useLibraryLookup";
+import { TrackingWidget } from "@/features/library/TrackingWidget";
 import { useCountdown } from "./useCountdown";
 import { displayTitle } from "@/lib/format";
 import { sanitizeHtml } from "@/lib/sanitize";
@@ -147,10 +148,7 @@ export function MediaDetailPage() {
           />
         )}
 
-        {/* Placeholder for the Phase 3 tracking widget */}
-        <div className="mt-6 rounded-lg border border-dashed border-line-strong p-4 text-sm text-ink-faint">
-          Tracking — status, progress, score — lands here in Phase 3.
-        </div>
+        <TrackingWidget media={media} />
 
         {media.relations.length > 0 && (
           <Rail title="Relations">

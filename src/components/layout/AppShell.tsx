@@ -27,7 +27,7 @@ export function AppShell() {
           ))}
         </nav>
         <p className="mt-auto text-xs text-ink-faint">
-          Data from AniList · Phase 2
+          Data from AniList · Phase 3
         </p>
       </aside>
 

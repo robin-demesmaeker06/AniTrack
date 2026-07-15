@@ -9,7 +9,7 @@ import { MediaCard, MediaCardSkeleton } from "./MediaCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
-import type { MediaType } from "@/types";
+import type { Media, MediaType } from "@/types";
 
 /** One shared component, two routes: /explore/anime and /explore/manga (§6.3). */
 export function ExplorePage() {
@@ -27,10 +27,22 @@ export function ExplorePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const media = useMemo(
-    () => query.data?.pages.flatMap((p) => p.media) ?? [],
-    [query.data],
-  );
+  // AniList rankings shift between page fetches (trending/popularity are
+  // live), so later pages can repeat items — dedupe while flattening.
+  const media = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Media[] = [];
+    for (const page of query.data?.pages ?? []) {
+      for (const m of page.media) {
+        const key = `${m.mediaType}:${m.anilistMediaId}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          out.push(m);
+        }
+      }
+    }
+    return out;
+  }, [query.data]);
 
   // Infinite scroll: load more when the sentinel becomes visible.
   const sentinelRef = useRef<HTMLDivElement>(null);

@@ -2,7 +2,7 @@ import { Link, useNavigate } from "react-router";
 import { useProfile } from "./useProfile";
 import { signOut } from "@/services/authService";
 import { formatMemberSince } from "@/lib/format";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { LibraryView } from "./LibraryView";
 import { Spinner } from "@/components/ui/Spinner";
 
 export function ProfilePage() {
@@ -58,18 +58,7 @@ export function ProfilePage() {
         <h2 id="library-heading" className="mb-3 font-display text-base font-bold">
           Library
         </h2>
-        <EmptyState
-          title="Nothing tracked yet"
-          body="Your anime and manga lists, stats, and genre breakdown appear here from Phase 3."
-          action={
-            <Link
-              to="/explore/anime"
-              className="rounded-md bg-signal px-4 py-2 text-sm font-semibold text-on-signal hover:bg-signal-strong"
-            >
-              Explore anime →
-            </Link>
-          }
-        />
+        <LibraryView />
       </section>
     </div>
   );
