@@ -56,3 +56,23 @@ export function formatMemberSince(iso: string): string {
     year: "numeric",
   }).format(new Date(iso));
 }
+
+const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+
+export function timeAgo(iso: string): string {
+  const seconds = (new Date(iso).getTime() - Date.now()) / 1000;
+  const steps: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ["year", 31536000],
+    ["month", 2592000],
+    ["week", 604800],
+    ["day", 86400],
+    ["hour", 3600],
+    ["minute", 60],
+  ];
+  for (const [unit, size] of steps) {
+    if (Math.abs(seconds) >= size) {
+      return rtf.format(Math.round(seconds / size), unit);
+    }
+  }
+  return "just now";
+}
