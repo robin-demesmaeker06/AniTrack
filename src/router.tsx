@@ -16,6 +16,7 @@ import { ExplorePage } from "@/features/explore/ExplorePage";
 import { MediaDetailPage } from "@/features/media/MediaDetailPage";
 import { ProfilePage } from "@/features/profile/ProfilePage";
 import { SettingsPage } from "@/features/profile/SettingsPage";
+import { AnilistCallbackPage } from "@/features/profile/AnilistCallbackPage";
 import { StatsPage } from "@/features/stats/StatsPage";
 import { Link } from "react-router";
 
@@ -47,6 +48,8 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      // AniList OAuth redirect target — authed, but no app shell/nav chrome.
+      { path: "/anilist/callback", element: <AnilistCallbackPage /> },
       {
         element: <AppShell />,
         children: [

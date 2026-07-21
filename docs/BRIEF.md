@@ -149,3 +149,41 @@ updates on all tracking actions, plain active language in empty/error states.
    - Mobile bottom nav now has 5 tabs — quick look that it still fits/reads
      fine at narrow widths.
 5. Commit + push (manual — sandbox git is read-only on this repo).
+
+## Robin's 6a deploy steps (AniList link + import)
+
+New Edge Function `anilist-link` (JWT-authed): `exchange` (OAuth code → token,
+encrypted at rest) and `import` (pull MediaListCollection → media_cache +
+library_entries, newest `updated_at` wins). No migration — Phase 1 already
+scaffolded `anilist_connections` + `library_entries.anilist_entry_id/synced_at`.
+Unlink + link-status are client-side via RLS.
+
+1. **Register an AniList API client**: AniList → Settings → Developer → Create
+   New Client. Redirect URL must match the app exactly, e.g.
+   `http://localhost:5173/anilist/callback` for local dev and
+   `https://<your-domain>/anilist/callback` for prod (AniList allows one redirect
+   URL per client — use two clients if you need both). Copy the Client ID + Secret.
+2. **Frontend env** (`.env.local` + prod): `VITE_ANILIST_CLIENT_ID=<client id>`.
+   The ID is public; it only builds the authorize URL. Leaving it empty hides the
+   Link button.
+3. **Edge Function secrets** (dashboard → Edge Functions → Secrets, or
+   `supabase secrets set`):
+   - `ANILIST_CLIENT_ID=<client id>`
+   - `ANILIST_CLIENT_SECRET=<client secret>`
+   - `ANILIST_TOKEN_KEY=<32-byte base64>` — generate with `openssl rand -base64 32`.
+     AES-GCM key that encrypts stored tokens; losing/rotating it invalidates
+     existing links (users just re-link).
+4. **Deploy**: `supabase functions deploy anilist-link`. (Uses the auto-injected
+   `SUPABASE_SERVICE_ROLE_KEY` for its admin client + `getUser(jwt)` for auth —
+   no service-key header wiring like the cron functions, since it's user-invoked.)
+5. **Rebuild frontend** with `VITE_ANILIST_CLIENT_ID` set.
+6. **Smoke test**: Settings → Link AniList → authorize on AniList → lands back on
+   Settings "Linked as <name>". Then Import my AniList library → toast "Imported
+   X, updated Y, kept Z local"; check Profile/library filled in. Re-run Import →
+   everything should be "kept local" (newest-wins, nothing clobbered). Unlink →
+   confirm the library stays. Notes: AniList tokens last ~1yr (no refresh yet —
+   6b concern); redirect URL mismatch is the usual first-try failure.
+
+6b (next): two-way push sync (write local edits back to AniList via
+SaveMediaListEntry), `sync_enabled` toggle, failure queue + retry, SYNC_ERROR
+notifications on give-up.

@@ -4,6 +4,7 @@ import { useProfile, useUpdateProfile } from "./useProfile";
 import { signOut, updatePassword } from "@/services/authService";
 import { deleteAccount, exportUserData } from "@/services/profileService";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { AniListSection } from "./AniListSection";
 import { Button } from "@/components/ui/Button";
 import { TextField, SelectField } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
@@ -43,15 +44,7 @@ export function SettingsPage() {
         scoreFormat={profile.scoreFormat}
         theme={profile.theme}
       />
-      <Section title="AniList">
-        <p className="text-sm text-ink-soft">
-          Link your AniList account for two-way sync — import your lists and
-          write progress back. Arrives in Phase 6.
-        </p>
-        <Button variant="secondary" disabled className="self-start">
-          Link AniList
-        </Button>
-      </Section>
+      <AniListSection />
       <AccountSection />
       <DangerSection username={profile.username} />
     </div>
