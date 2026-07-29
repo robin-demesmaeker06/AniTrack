@@ -144,6 +144,20 @@ Deno.serve(async (req) => {
       // Jikan's own budget is out of our hands — serve stale cache rather
       // than a hard failure if we have anything at all.
       if (cached.length > 0) return json(200, { items: cached, fromCache: true, stale: true });
+
+      // 404 is a normal outcome, not a failure: the series has no MAL entry,
+      // or AniList's idMal was null/stale. "This series has no news" is the
+      // honest answer, and the client renders it as an empty section instead
+      // of an error. Reserve 502 for Jikan actually being broken.
+      if (res.status === 404) {
+        return json(200, { items: [], fromCache: false });
+      }
+
+      // Keep the upstream status — without it a 404, an outage and a bad id
+      // are indistinguishable in the logs.
+      console.warn(
+        `series-news: jikan ${jikanPath}/${malId}/news returned ${res.status}`,
+      );
       return json(res.status === 429 ? 429 : 502, {
         error: "Couldn't reach Jikan right now.",
       });
