@@ -28,7 +28,7 @@ can pick up without the chat history.
 6. ✅ AniList OAuth link, import, two-way sync with failure queue — **deployed + verified live 2026-07-29**
    - 6a ✅ OAuth link + one-way import — **built 2026-07-16, committed `b726c9a`, deployed + live.** AniList client 46551; `anilist-link` deployed. Confirmed working: `enqueue_anilist_sync` gates on an active sync-enabled link and was creating queue rows, so the OAuth exchange, encrypted token, and sync toggle are all functioning.
    - 6b ✅ Two-way push sync — **built 2026-07-21, committed `d31ceef`, deployed + verified 2026-07-29.** Verification: two queued upserts drained on one cron tick and wrote real AniList entry ids back to `library_entries` (182205 → 564448646, 199111 → 584392214, both `synced_at` 15:25:02). **Deploy gotcha that cost a session:** the sync-push cron was initially sending the legacy `service_role` JWT, so the function 401'd at its auth gate on every tick for 8 days — queue rows sat at `attempts = 0` with `last_error` NULL, and the logs showed only clean boot/shutdown because a 401 return isn't error-level. Fixed by switching the cron's Authorization header to the `sb_secret_` key. Identical root cause to the drop-check cron failure; see the auth-key gotcha in anitrack.md. Local edits enqueue a push (`enqueue_anilist_sync` RPC, no-op unless a sync-enabled link exists); scheduled `sync-push` Edge Function drains the `anilist_sync_queue` outbox → `SaveMediaListEntry` / `DeleteMediaListEntry`, marks the entry `synced_at`, backs off on failure, and after 5 attempts drops the row + raises one `SYNC_ERROR` notification. `sync_enabled` toggle + "N changes waiting to sync" indicator on Settings. Build-verified (tsc + vite 697 kB + check:bundle clean; sync-push esbuild-clean). SQL not run against a live DB — Robin's migration + smoke test are the first real exercise.
-7. ⬜ Polish: empty/error/loading states, a11y, mobile ergonomics, §8 security verification
+7. 🟡 Polish: empty/error/loading states, a11y, mobile ergonomics, §8 security verification — **first pass built 2026-07-29, awaiting Robin's run + smoke test** (see "Robin's Phase 7 steps"). Loading/empty states were already in good shape (EmptyState in 8 files, Spinner in 16, Toast in 8) so this pass focused on the real gaps: route-level error boundaries, an extended RLS test, and a handful of a11y/mobile fixes.
 
 Each phase must leave the app working and deployable. Confirm with Robin
 after each phase before starting the next.
@@ -228,3 +228,72 @@ Notes / conservative choices worth knowing before the smoke test:
   that's a deliberate follow-up, not in 6b.)
 - AniList `MediaListStatus` maps 1:1 to our `entry_status` enum; score is
   `scoreRaw` (0–100, exactly what we store).
+
+## Robin's Phase 7 steps (polish + §8 verification)
+
+No migration, no new Edge Function, no new dependency. One SQL file to run, one
+frontend rebuild, plus the key rotation that has been outstanding since 07-16.
+
+1. **Run the extended RLS test.** Paste `supabase/tests/rls_check.sql` into the
+   SQL editor and run it as `postgres`. It wraps everything in a transaction and
+   rolls back, so it is safe to run against production and leaves nothing behind.
+   Expect two `NOTICE` lines: "RLS smoke test (user A): all checks passed" and
+   the same for user B. Any failure aborts with a `FAIL:` message naming the
+   table and the expectation that broke.
+
+   The old version covered 4 tables. This one covers all 9 plus the three
+   SECURITY DEFINER functions, and adds assertions that did not exist before:
+   `anilist_sync_queue` is select-own with no client writes (a client must not
+   be able to reset `attempts` and escape the retry ladder), `notifications`
+   cannot be forged by a client, `activity_log` rows are immutable even for
+   their owner, `edge_rate_limits` is invisible to clients despite RLS being
+   policy-free, `anilist_connections` rejects writes to every column except
+   `sync_enabled`, and `bump_rate_limit` / `insert_notifications` are not
+   callable by `authenticated`.
+
+   **This SQL has never been executed** — there is no Postgres in the build
+   sandbox, so it is verified only at statement-parse level (libpg_query, 16
+   statements, clean). The plpgsql bodies are unverified. If something errors on
+   the first run it is far more likely to be a bug in the test than a hole in
+   the schema; read the message before panicking.
+
+2. **Rebuild + redeploy the frontend.** Client-only changes, no backend touched:
+   - Route-level error boundaries (`src/components/layout/RouteError.tsx`, wired
+     as `errorElement` throughout `router.tsx`). A render throw now degrades one
+     page and leaves the nav usable, instead of blanking the whole app to the
+     Sentry root boundary. Errors are reported to Sentry from the boundary,
+     since react-router catches them before the root boundary can.
+   - `Modal` now sets `aria-labelledby` on the dialog.
+   - Focus ring no longer forces `border-radius: 2px`, which was squaring off
+     rounded buttons while focused.
+   - `AppShell`: the `match` prop on the Explore tab was declared but never
+     wired, so the tab went inactive on `/explore/manga`. Now honoured, with
+     `aria-current` set to agree with the styling.
+   - 44px minimum touch targets under `@media (pointer: coarse)` — desktop
+     density is unchanged.
+
+3. **Rotate the `sb_secret` key.** Outstanding since 2026-07-16: the key was
+   pasted into a chat during debugging and Supabase has already flagged it.
+   Rotating means re-doing the Authorization header on **all three** cron jobs
+   (`drop-check`, `news-fetch`, `sync-push`) — including the sync-push one just
+   fixed. Do it in one sitting, then confirm `anilist_sync_queue` still drains.
+
+4. **Smoke test**, in rough order of value: force a render error on one page and
+   confirm the nav survives and Sentry receives it; tab through Explore filters
+   and the tracking widget to check focus rings are visible on the dark theme;
+   open a modal with a screen reader and confirm the title is announced; visit
+   `/explore/manga` and confirm the Explore tab stays lit; walk the app on a
+   phone for tap targets and bottom-nav clearance.
+
+Verified in the sandbox before handoff: fresh clone of `819b934` + overlay,
+`tsc --noEmit` clean, `vite build` clean at a real 698.76 kB bundle (not a
+DCE stub), `check:bundle` passed, and the coarse-pointer media query confirmed
+present in the emitted CSS.
+
+**Known soft spot, deliberately not fixed:** the 44px rule is the change most
+likely to need visual adjustment. It applies to every `button`, `select`,
+`summary`, `[role="button"]` and block-level `a[href]` on touch devices, so
+tight control rows (the progress steppers, the inline `+1` in LibraryView, the
+notification bell) may gain height on a phone. `min-height` does not affect
+inline elements, so prose links are untouched. Check it on a device and tighten
+per-component if anything looks stretched.

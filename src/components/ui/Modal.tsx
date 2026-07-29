@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 interface ModalProps {
   open: boolean;
@@ -9,6 +9,9 @@ interface ModalProps {
 
 export function Modal({ open, title, onClose, children }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Ties the dialog to its heading so screen readers announce what opened.
+  // Native <dialog> + showModal() already gives focus trap and Escape.
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -20,6 +23,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       onClose={onClose}
       onClick={(e) => {
         if (e.target === ref.current) onClose(); // backdrop click
@@ -27,7 +31,9 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
       className="m-auto w-[calc(100vw-2rem)] max-w-md rounded-lg border border-line-strong bg-surface p-0 text-ink backdrop:bg-black/60"
     >
       <div className="p-5">
-        <h2 className="font-display text-lg font-bold">{title}</h2>
+        <h2 id={titleId} className="font-display text-lg font-bold">
+          {title}
+        </h2>
         <div className="mt-3">{children}</div>
       </div>
     </dialog>

@@ -79,11 +79,28 @@ body {
   @apply bg-bg text-ink font-sans antialiased;
 }
 
-/* Visible keyboard focus everywhere (§10) */
+/* Visible keyboard focus everywhere (§10).
+   No border-radius here: the outline already follows the element's own
+   radius, and forcing 2px squared off every rounded button while focused. */
 :focus-visible {
   outline: 2px solid var(--at-signal);
   outline-offset: 2px;
-  border-radius: 2px;
+}
+
+/*
+  Touch targets (§10 mobile ergonomics): 44px minimum on coarse pointers only,
+  so desktop density is untouched. min-height has no effect on inline elements,
+  which is what we want — inline text links in prose stay inline, while
+  button-like controls (inline-flex/block) grow to a thumb-sized target.
+*/
+@media (pointer: coarse) {
+  button,
+  select,
+  summary,
+  [role="button"],
+  a[href] {
+    min-height: 44px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

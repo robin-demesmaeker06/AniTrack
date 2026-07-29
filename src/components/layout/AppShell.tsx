@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useLocation } from "react-router";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeApplier } from "@/features/profile/ThemeApplier";
 import { NotificationBell } from "@/features/notifications/NotificationBell";
@@ -29,9 +29,7 @@ export function AppShell() {
             <NavItem key={tab.to} {...tab} />
           ))}
         </nav>
-        <p className="mt-auto text-xs text-ink-faint">
-          Data from AniList · Phase 5
-        </p>
+        <p className="mt-auto text-xs text-ink-faint">Data from AniList</p>
       </aside>
 
       {/* Content */}
@@ -62,46 +60,52 @@ interface TabProps {
   match?: string;
 }
 
-function NavItem({ to, label, icon: Icon }: TabProps) {
+/**
+ * Tabs whose `to` is a specific sub-route (Explore points at /explore/anime)
+ * need a broader active test, or the tab goes dark the moment you switch to
+ * the manga list. NavLink's own isActive can't express that, so `match` opts
+ * into a prefix test and we set aria-current to agree with the styling.
+ */
+function useTabActive(to: string, match?: string): boolean {
+  const { pathname } = useLocation();
+  if (match) return pathname === match || pathname.startsWith(`${match}/`);
+  if (to === "/") return pathname === "/";
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+function NavItem({ to, label, icon: Icon, match }: TabProps) {
+  const active = useTabActive(to, match);
   return (
     <NavLink
       to={to}
       end={to === "/"}
-      className={({ isActive }) =>
-        `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-          isActive
-            ? "bg-raised text-signal font-semibold"
-            : "text-ink-soft hover:text-ink hover:bg-raised/60"
-        }`
-      }
+      aria-current={active ? "page" : undefined}
+      className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+        active
+          ? "bg-raised text-signal font-semibold"
+          : "text-ink-soft hover:text-ink hover:bg-raised/60"
+      }`}
     >
-      {({ isActive }) => (
-        <>
-          <Icon active={isActive} />
-          {label}
-        </>
-      )}
+      <Icon active={active} />
+      {label}
     </NavLink>
   );
 }
 
-function MobileTab({ to, label, icon: Icon }: TabProps) {
+function MobileTab({ to, label, icon: Icon, match }: TabProps) {
+  const active = useTabActive(to, match);
   return (
     <NavLink
       to={to}
       end={to === "/"}
-      className={({ isActive }) =>
-        `flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] ${
-          isActive ? "text-signal font-semibold" : "text-ink-faint"
-        }`
-      }
+      aria-current={active ? "page" : undefined}
+      // min-h-11 keeps the tap target at 44px even on short viewports.
+      className={`flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] ${
+        active ? "text-signal font-semibold" : "text-ink-faint"
+      }`}
     >
-      {({ isActive }) => (
-        <>
-          <Icon active={isActive} />
-          {label}
-        </>
-      )}
+      <Icon active={active} />
+      {label}
     </NavLink>
   );
 }
