@@ -2,7 +2,9 @@ import { useState } from "react";
 import {
   useAnilistConnection,
   useAnilistImport,
+  useAnilistSyncToggle,
   useAnilistUnlink,
+  usePendingSyncCount,
 } from "./useAnilist";
 import { isAnilistConfigured, startAnilistAuth } from "@/services/anilistLinkService";
 import { Button } from "@/components/ui/Button";
@@ -10,14 +12,30 @@ import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 import { timeAgo } from "@/lib/format";
 
-/** AniList link + import controls on the Settings page (§Phase 6a). Two-way
- * write-back (sync_enabled toggle, push queue) lands in 6b. */
+/** AniList link, import, and two-way push sync controls on Settings (§Phase 6). */
 export function AniListSection() {
   const toast = useToast();
   const { data: connection, isLoading } = useAnilistConnection();
   const importMut = useAnilistImport();
   const unlinkMut = useAnilistUnlink();
+  const syncToggle = useAnilistSyncToggle();
+  const syncEnabled = connection?.syncEnabled ?? false;
+  const { data: pendingCount } = usePendingSyncCount(Boolean(connection) && syncEnabled);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+
+  function onToggleSync(next: boolean) {
+    syncToggle.mutate(next, {
+      onSuccess: () =>
+        toast(
+          next
+            ? "Two-way sync on — your edits now push to AniList."
+            : "Two-way sync off. Your edits stay local.",
+          "success",
+        ),
+      onError: (err) =>
+        toast(err instanceof Error ? err.message : "Couldn't update sync", "error"),
+    });
+  }
 
   function onImport() {
     importMut.mutate(undefined, {
@@ -64,6 +82,37 @@ export function AniListSection() {
               the more recently edited copy wins — local changes are never
               overwritten.
             </p>
+
+            <div className="flex items-start justify-between gap-4 rounded-md border border-line bg-raised p-3">
+              <div>
+                <p className="text-sm font-medium text-ink">Push changes to AniList</p>
+                <p className="mt-0.5 text-xs text-ink-faint">
+                  When on, edits you make here sync back to your AniList list in
+                  the background.
+                  {syncEnabled && pendingCount ? (
+                    <span className="text-ink-soft">
+                      {" "}
+                      {pendingCount} {pendingCount === 1 ? "change" : "changes"} waiting to
+                      sync.
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={syncEnabled}
+                aria-label="Push changes to AniList"
+                disabled={syncToggle.isPending}
+                onClick={() => onToggleSync(!syncEnabled)}
+                className={`mt-0.5 flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors disabled:opacity-50 ${
+                  syncEnabled ? "justify-end bg-signal" : "justify-start bg-line"
+                }`}
+              >
+                <span className="block h-5 w-5 rounded-full bg-white shadow-sm transition-transform" />
+              </button>
+            </div>
+
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={onImport}
@@ -100,8 +149,8 @@ export function AniListSection() {
         ) : isAnilistConfigured() ? (
           <>
             <p className="text-sm text-ink-soft">
-              Link your AniList account to import your existing lists into
-              AniTrack. Two-way write-back arrives in 6b.
+              Link your AniList account to import your existing lists and, if you
+              want, push your AniTrack edits back to AniList.
             </p>
             <Button
               variant="secondary"

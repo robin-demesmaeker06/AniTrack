@@ -1,6 +1,6 @@
 // Library CRUD + activity logging (§6.4). Every change is persisted to
-// Supabase and diffed into activity_log; AniList write-through hooks in
-// here in Phase 6 — callers won't change.
+// Supabase and diffed into activity_log; AniList write-through (Phase 6b)
+// enqueues a push here too — callers don't change.
 import { getSupabase } from "./supabaseClient";
 import type {
   ActivityAction,
@@ -119,6 +119,28 @@ async function logActivity(rows: ActivityInsert[]): Promise<void> {
   if (error) console.warn("activity_log insert failed:", error.message);
 }
 
+// ---------------------------------------------------------------- sync push
+
+/**
+ * Enqueue an AniList push for this media (§Phase 6b). The RPC is a no-op for
+ * users without a sync-enabled link, so this is safe to fire on every edit.
+ * Best-effort: a queue failure must never break the local write.
+ */
+async function enqueueSync(
+  anilistMediaId: number,
+  mediaType: MediaType,
+  operation: "upsert" | "delete",
+  anilistEntryId: number | null = null,
+): Promise<void> {
+  const { error } = await getSupabase().rpc("enqueue_anilist_sync", {
+    p_media_id: anilistMediaId,
+    p_media_type: mediaType,
+    p_operation: operation,
+    p_anilist_entry_id: anilistEntryId,
+  });
+  if (error) console.warn("enqueue_anilist_sync failed:", error.message);
+}
+
 // ---------------------------------------------------------------- lookup
 
 export interface LibraryLookupEntry {
@@ -191,6 +213,7 @@ export async function addEntry(
       detail: { status },
     },
   ]);
+  await enqueueSync(media.anilistMediaId, media.mediaType, "upsert");
   return toEntry(data as EntryRow);
 }
 
@@ -263,6 +286,7 @@ export async function updateEntry(
   }
   await logActivity(activity);
 
+  await enqueueSync(current.anilistMediaId, current.mediaType, "upsert");
   return updated;
 }
 
@@ -272,6 +296,14 @@ export async function removeEntry(entry: LibraryEntry): Promise<void> {
     .delete()
     .eq("id", entry.id);
   if (error) throw error;
+  // Mirror the removal to AniList. The local row (and its anilist_entry_id) is
+  // gone now, so pass the id along for DeleteMediaListEntry.
+  await enqueueSync(
+    entry.anilistMediaId,
+    entry.mediaType,
+    "delete",
+    entry.anilistEntryId,
+  );
 }
 
 // ---------------------------------------------------------------- list

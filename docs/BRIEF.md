@@ -25,7 +25,9 @@ can pick up without the chat history.
    - 5a ✅ Schedule page + drop-detection job + notifications center — **built + smoke-tested 2026-07-15** (one bug found mid-test: `.refine()` inside `z.discriminatedUnion()` crashed the anilist function at boot on zod 3, fixed to a plain object schema — see anitrack.md). Schedule: new `schedule` action on the anilist function (airingSchedules, server-side pagination, adult filter), rolling 7-day window, day-strip tabs (mobile) / seven columns (desktop), local timezone, countdowns on today, All vs My list toggle with library highlighting. Drop detection: `drop-check` Edge Function (service-role only) refreshes media_cache for every CURRENT/PLANNING series and inserts NEW_EPISODE / NEW_CHAPTER ("Updated") notifications via the new `insert_notifications` RPC — idempotent through `notifications_dedupe_idx`. This same refresh keeps Home's "New drops" fresh. Notifications center: floating bell with unread badge (60s poll), dropdown panel, mark-one/mark-all-read (optimistic), click-through to the media page.
    - 5b ✅ Stats dashboard — **built 2026-07-15, awaiting Robin's smoke test.** New `/stats` route (linked from Profile header, no new nav tab — same treatment as Settings). Pure client-side aggregation (`src/features/stats/stats.ts`) over the library list already fetched by Home/Profile: episodes watched, chapters read, mean score, status breakdown split by anime/manga, top genres — all as plain bar charts (no chart dependency). "Days watched" originally shipped as a flat 24 min/episode estimate (no migration/deploy needed); **since 5c's deploy was happening anyway, real AniList `duration` was added the same session** (see below) — Stats now blends real durations where the cache has them with the 24 min/ep fallback elsewhere, and the card says which ("Real AniList runtime" / "Mixed" / "Est.").
    - 5c ✅ News page + aggregation pipeline + real episode duration — **built 2026-07-15, awaiting Robin's smoke test.** `news_items` was already scaffolded in Phase 1 — no new table, just a `related_anilist_media_id` index. `news-fetch` Edge Function (scheduled, service-role only, mirrors drop-check's auth): fetches the config-driven RSS list (`FEEDS` array — start: ANN, Crunchyroll News) via `npm:rss-parser`, strips HTML from excerpts, dedupes on `(source, guid)`, best-effort matches headlines to cached AniList titles (conservative substring match — never guesses wrong on a miss, just sometimes misses). `series-news` Edge Function (user-invoked, JWT + `bump_rate_limit` like the anilist function): Jikan `/anime|manga/{mal_id}/news`, read-through cached in `news_items` itself (source `jikan`, 16h TTL within the spec's 12–24h window), falls back to stale cache if Jikan itself 429s. Client: News page (`/news`, new 5th nav tab — reverse-chron cards, All vs My series), `LibraryNewsStrip` on Home ("News on your series", renders nothing if no matches — no empty-state noise), `SeriesNewsSection` on the media detail page (lazy Jikan fetch on open). Real duration: added `duration` to `MEDIA_FIELDS` in both `anilist` and `drop-check` functions + a `media_cache.duration` column (migration `20260715130000`) — piggybacked here since both functions needed a redeploy for 5c anyway. **Caveat, not verified against live feeds** (no outbound network access in the build sandbox): thumbnail/excerpt field mapping in `news-fetch` is written defensively from the RSS/Atom spec, not confirmed against ANN's/Crunchyroll's actual payloads — first thing to check in the smoke test if cards show up with no images.
-6. ⬜ AniList OAuth link, import, two-way sync with failure queue
+6. 🟡 AniList OAuth link, import, two-way sync with failure queue
+   - 6a ✅ OAuth link + one-way import — **built 2026-07-16, committed `b726c9a`, awaiting Robin's deploy + smoke test** (needs AniList client registration + secrets, see "Robin's 6a deploy steps").
+   - 6b ✅ Two-way push sync — **built 2026-07-21, awaiting Robin's deploy + smoke test.** Local edits enqueue a push (`enqueue_anilist_sync` RPC, no-op unless a sync-enabled link exists); scheduled `sync-push` Edge Function drains the `anilist_sync_queue` outbox → `SaveMediaListEntry` / `DeleteMediaListEntry`, marks the entry `synced_at`, backs off on failure, and after 5 attempts drops the row + raises one `SYNC_ERROR` notification. `sync_enabled` toggle + "N changes waiting to sync" indicator on Settings. Build-verified (tsc + vite 697 kB + check:bundle clean; sync-push esbuild-clean). SQL not run against a live DB — Robin's migration + smoke test are the first real exercise.
 7. ⬜ Polish: empty/error/loading states, a11y, mobile ergonomics, §8 security verification
 
 Each phase must leave the app working and deployable. Confirm with Robin
@@ -184,6 +186,45 @@ Unlink + link-status are client-side via RLS.
    confirm the library stays. Notes: AniList tokens last ~1yr (no refresh yet —
    6b concern); redirect URL mismatch is the usual first-try failure.
 
-6b (next): two-way push sync (write local edits back to AniList via
-SaveMediaListEntry), `sync_enabled` toggle, failure queue + retry, SYNC_ERROR
-notifications on give-up.
+## Robin's 6b deploy steps (two-way push sync)
+
+Prerequisite: 6a must be deployed + working first (the token, encryption key,
+and `anilist_connections` rows all come from 6a). Same `ANILIST_TOKEN_KEY`,
+`ANILIST_CLIENT_ID/SECRET` secrets — no new AniList registration needed.
+
+1. **Run the migration** `supabase/migrations/20260721120000_phase6b_sync_push.sql`
+   in the SQL editor. Adds `anilist_sync_queue` (RLS select-own) + the
+   `enqueue_anilist_sync` SECURITY DEFINER RPC.
+2. **Deploy** the new function: `supabase functions deploy sync-push`. It reuses
+   the auto-injected `SUPABASE_SERVICE_ROLE_KEY` and `ANILIST_TOKEN_KEY` — no new
+   secrets.
+3. **Schedule sync-push** every ~5 min: dashboard → Integrations → Cron → Edge
+   Function job, `*/5 * * * *`, Authorization `Bearer <the sb_secret / service
+   role key>` — same key contract as drop-check and news-fetch (see the auth
+   gotcha in anitrack.md: on this project `SUPABASE_SERVICE_ROLE_KEY` is the
+   **new secret key**, not the legacy JWT). No frontend env change.
+4. **Rebuild + redeploy the frontend** (Settings gains the sync toggle +
+   pending indicator; libraryService now enqueues pushes).
+5. **Smoke test**:
+   - Settings → with AniList linked, flip **Push changes to AniList** on.
+   - Edit a library entry (bump progress, change status/score). Within ~5 min
+     the change should appear on your AniList list; the "N changes waiting to
+     sync" hint should tick up then clear.
+   - Remove an entry → confirm it disappears from AniList too (delete op).
+   - Turn the toggle **off**, edit something → confirm nothing pushes and no
+     queue rows linger (drop-on-drain).
+   - Force a failure (e.g. temporarily set a bad `ANILIST_TOKEN_KEY`, or unlink
+     mid-flight) to confirm the retry backoff and, after 5 attempts, a single
+     `SYNC_ERROR` notification in the bell. Restore the key afterward.
+   - Re-import from AniList → nothing should double up (newest-wins still holds).
+6. Commit + push (manual — sandbox git is read-only on this repo).
+
+Notes / conservative choices worth knowing before the smoke test:
+- The pusher sends the **live** local row at drain time, not a queued snapshot,
+  so rapid +1 taps collapse into one push of the latest state.
+- Score and start/finish dates are only pushed **when set locally** — a bare
+  progress bump never clears a remote score or date. Status and progress are
+  always authoritative. (If you *clear* a score locally and want that mirrored,
+  that's a deliberate follow-up, not in 6b.)
+- AniList `MediaListStatus` maps 1:1 to our `entry_status` enum; score is
+  `scoreRaw` (0–100, exactly what we store).

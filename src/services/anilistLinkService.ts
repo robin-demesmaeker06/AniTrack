@@ -80,6 +80,32 @@ export async function importAnilistLibrary(): Promise<ImportResult> {
   return invokeLink({ action: "import" });
 }
 
+/** Toggle two-way push sync (§Phase 6b). Off = local edits stop being queued
+ * for AniList; existing pending pushes are dropped on the next drain. RLS grants
+ * update on just the sync_enabled column. */
+export async function setAnilistSyncEnabled(enabled: boolean): Promise<void> {
+  const sb = getSupabase();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) throw new Error("You're not signed in.");
+  const { error } = await sb
+    .from("anilist_connections")
+    .update({ sync_enabled: enabled })
+    .eq("user_id", user.id);
+  if (error) throw error;
+}
+
+/** How many local edits are still waiting to be pushed to AniList. Reads the
+ * user's own queue rows (RLS-scoped); 0 when nothing is pending or unlinked. */
+export async function getPendingSyncCount(): Promise<number> {
+  const { count, error } = await getSupabase()
+    .from("anilist_sync_queue")
+    .select("id", { count: "exact", head: true });
+  if (error) throw error;
+  return count ?? 0;
+}
+
 /** Remove the AniList link. Local library rows are left untouched. */
 export async function unlinkAnilist(): Promise<void> {
   const sb = getSupabase();

@@ -3,7 +3,9 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import {
   exchangeAnilistCode,
   getAnilistConnection,
+  getPendingSyncCount,
   importAnilistLibrary,
+  setAnilistSyncEnabled,
   unlinkAnilist,
 } from "@/services/anilistLinkService";
 
@@ -56,5 +58,28 @@ export function useAnilistUnlink() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: connectionKey(user?.id) });
     },
+  });
+}
+
+/** Flip two-way push sync on/off. Refreshes link status on settle. */
+export function useAnilistSyncToggle() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => setAnilistSyncEnabled(enabled),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: connectionKey(user?.id) });
+    },
+  });
+}
+
+/** Count of local edits still waiting to push to AniList (polls while mounted). */
+export function usePendingSyncCount(enabled: boolean) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["anilist-pending-sync", user?.id],
+    queryFn: getPendingSyncCount,
+    enabled: Boolean(user) && enabled,
+    refetchInterval: 30 * 1000,
   });
 }
